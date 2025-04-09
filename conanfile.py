@@ -19,7 +19,7 @@ class DawnConan(ConanFile):
     options = {"shared": [True, False], "fPIC": [True, False]}
     default_options = {"shared": False, "fPIC": True}
 
-    exports_sources = "../"
+    exports_sources = "*"
 
     def config_options(self):
         if self.settings.os == "Windows":
@@ -75,6 +75,4 @@ class DawnConan(ConanFile):
 
     def package_info(self):
         self.cpp_info.set_property("cmake_target_name", "dawn::webgpu_dawn")
-        lib_file = os.path.join(self.package_folder, "lib", "libwebgpu_dawn.so")
-        self.cpp_info.set_property("cmake_imported_locations", [lib_file])
         self.cpp_info.libs = ["webgpu_dawn"]
