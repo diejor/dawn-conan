@@ -8,16 +8,16 @@ from conan.tools.files import collect_libs
 
 class DawnConan(ConanFile):
     name = "dawn"
-    version = "0.1"
+    version = "7069"
 
-    license = "MIT"
-    author = "Diego Rodrigues"
-    description = "dawn"
-    topics = ("conan", "dawn")
+    author = "Dawn Authors"
+    description = "Dawn is an open-source and cross-platform implementation of the WebGPU standard."
+    topics = ("conan", "dawn", "webgpu", "graphics", "gpu")
 
     settings = "os", "compiler", "build_type", "arch"
     options = {"shared": [True, False], "fPIC": [True, False]}
     default_options = {"shared": False, "fPIC": True}
+    exports_sources = "AUTHORS", "LICENSE"
 
     def config_options(self):
         if self.settings.os == "Windows":
