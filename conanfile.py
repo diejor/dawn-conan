@@ -1,6 +1,7 @@
 import os
 from conan import ConanFile
 from conan.tools.cmake import CMakeToolchain, CMake, cmake_layout
+from conan.tools.scm import Git
 from conan.tools.files import get, rmdir
 
 class DawnConan(ConanFile):
@@ -62,11 +63,23 @@ class DawnConan(ConanFile):
         cmake_layout(self)
 
     def source(self):
-        get(
-            self,
-            url=f"https://dawn.googlesource.com/dawn/+archive/refs/heads/chromium/{self.version}.tar.gz",
-            strip_root=False
+        git = Git(self)
+        git.clone(
+            url="https://dawn.googlesource.com/dawn",
+            args=[
+                "--branch", f"chromium/{self.version}",
+                "--single-branch",
+                "--filter=blob:none",
+                "--sparse",
+                "--no-checkout",
+                "--depth=1",
+            ],
+            target="."
         )
+        self.run("git sparse-checkout init --no-cone")
+        self.run("git sparse-checkout set '/*' '!/test'")
+        self.run(f"git checkout chromium/{self.version}")
+        rmdir(self, ".git")
         rmdir(self, "test")
 
     def generate(self):
