@@ -1,20 +1,21 @@
 import os
 from conan import ConanFile
-from conan.tools.cmake import CMakeToolchain, CMake, cmake_layout
+from conan.tools.cmake import CMake, CMakeToolchain, cmake_layout
 from conan.tools.scm import Git
-from conan.tools.files import get, rmdir
+from conan.tools.files import copy, rm, rmdir
 
 class DawnConan(ConanFile):
-    name        = "dawn"
-    version     = "7069"
-    license     = "Apache-2.0"
-    url         = "https://dawn.googlesource.com/dawn"
-    description = "Dawn is an open-source and cross-platform implementation of the WebGPU standard."
-    topics      = ("conan", "dawn", "webgpu", "graphics", "gpu")
+    name         = "dawn"
+    version      = "7069"
+    license      = "Apache-2.0"
+    url          = "https://dawn.googlesource.com/dawn"
+    description  = "Dawn is an open-source and cross-platform implementation of the WebGPU standard."
+    topics       = ("conan", "dawn", "webgpu", "graphics", "gpu")
 
-    settings = "os", "compiler", "build_type", "arch"
-
-    options = {
+    settings     = "os", "compiler", "build_type", "arch"
+    options      = {
+        "shared":            [True, False],
+        "fPIC":              [True, False],
         # backends
         "force_vulkan":     [True, False, None],
         "force_d3d12":      [True, False, None],
@@ -33,24 +34,26 @@ class DawnConan(ConanFile):
         "force_x11":        [True, False, None],
         "force_glfw":       [True, False, None],
     }
-
-    # All unset by default—lets Dawn’s CMakeLists pick its own defaults
     default_options = {
-        "force_vulkan":     None,
-        "force_d3d12":      None,
-        "force_metal":      None,
-        "force_d3d11":      None,
-        "force_null":       None,
-        "force_desktop_gl": None,
-        "force_opengles":   None,
-        "force_asan":       None,
-        "force_tsan":       None,
-        "force_msan":       None,
-        "force_ubsan":      None,
-        "force_wayland":    None,
-        "force_x11":        None,
-        "force_glfw":       None,
+        "shared":            False,
+        "fPIC":              True,
+        "force_vulkan":      None,
+        "force_d3d12":       None,
+        "force_metal":       None,
+        "force_d3d11":       None,
+        "force_null":        None,
+        "force_desktop_gl":  None,
+        "force_opengles":    None,
+        "force_asan":        None,
+        "force_tsan":        None,
+        "force_msan":        None,
+        "force_ubsan":       None,
+        "force_wayland":     None,
+        "force_x11":         None,
+        "force_glfw":        None,
     }
+
+    generators = "CMakeDeps"
 
     def config_options(self):
         if self.settings.os == "Macos":
@@ -59,20 +62,21 @@ class DawnConan(ConanFile):
             if self.options.force_metal is None:
                 self.options.force_metal = True
 
+    def configure(self):
+        if self.options.shared:
+            del self.options.fPIC
+
     def layout(self):
         cmake_layout(self)
 
     def source(self):
         git = Git(self)
         git.clone(
-            url="https://dawn.googlesource.com/dawn",
+            url=self.url,
             args=[
                 "--branch", f"chromium/{self.version}",
-                "--single-branch",
-                "--filter=blob:none",
-                "--sparse",
-                "--no-checkout",
-                "--depth=1",
+                "--single-branch", "--filter=blob:none",
+                "--sparse", "--no-checkout", "--depth=1"
             ],
             target="."
         )
@@ -83,40 +87,50 @@ class DawnConan(ConanFile):
         rmdir(self, "test")
 
     def generate(self):
-        tc = CMakeToolchain(self, generator="Ninja")
+        tc = CMakeToolchain(self)
+        tc.cache_variables["CMAKE_POSITION_INDEPENDENT_CODE"]    = "ON"
+        tc.cache_variables["BUILD_SHARED_LIBS"]                 = "OFF"
+        tc.cache_variables["DAWN_BUILD_MONOLITHIC_LIBRARY"]     = "ON"
+        tc.cache_variables["DAWN_ENABLE_INSTALL"]               = "ON"
+        tc.cache_variables["DAWN_FETCH_DEPENDENCIES"]           = "ON"
 
-        tc.cache_variables["DAWN_ENABLE_INSTALL"]     = "ON"
-        tc.cache_variables["DAWN_FETCH_DEPENDENCIES"] = "ON"
-
-        # Map any forced options into DAWN_ENABLE_*/USE_* cache vars
-        def _force(opt_name, cmake_var):
-            val = getattr(self.options, opt_name)
+        def _map(opt, var):
+            val = getattr(self.options, opt)
             if val is True:
-                tc.cache_variables[cmake_var] = "ON"
+                tc.cache_variables[var] = "ON"
             elif val is False:
-                tc.cache_variables[cmake_var] = "OFF"
+                tc.cache_variables[var] = "OFF"
 
-        # Backends
-        _force("force_vulkan",     "DAWN_ENABLE_VULKAN")
-        _force("force_d3d12",      "DAWN_ENABLE_D3D12")
-        _force("force_metal",      "DAWN_ENABLE_METAL")
-        _force("force_d3d11",      "DAWN_ENABLE_D3D11")
-        _force("force_null",       "DAWN_ENABLE_NULL")
-        _force("force_desktop_gl", "DAWN_ENABLE_DESKTOP_GL")
-        _force("force_opengles",   "DAWN_ENABLE_OPENGLES")
+        # backends
+        for opt, var in [
+            ("force_vulkan",     "DAWN_ENABLE_VULKAN"),
+            ("force_d3d12",      "DAWN_ENABLE_D3D12"),
+            ("force_metal",      "DAWN_ENABLE_METAL"),
+            ("force_d3d11",      "DAWN_ENABLE_D3D11"),
+            ("force_null",       "DAWN_ENABLE_NULL"),
+            ("force_desktop_gl", "DAWN_ENABLE_DESKTOP_GL"),
+            ("force_opengles",   "DAWN_ENABLE_OPENGLES"),
+        ]:
+            _map(opt, var)
 
-        # Sanitizers
-        _force("force_asan",  "DAWN_ENABLE_ASAN")
-        _force("force_tsan",  "DAWN_ENABLE_TSAN")
-        _force("force_msan",  "DAWN_ENABLE_MSAN")
-        _force("force_ubsan", "DAWN_ENABLE_UBSAN")
+        # sanitizers
+        for opt, var in [
+            ("force_asan",  "DAWN_ENABLE_ASAN"),
+            ("force_tsan",  "DAWN_ENABLE_TSAN"),
+            ("force_msan",  "DAWN_ENABLE_MSAN"),
+            ("force_ubsan", "DAWN_ENABLE_UBSAN"),
+        ]:
+            _map(opt, var)
 
-        # Windowing
-        _force("force_wayland", "DAWN_USE_WAYLAND")
-        _force("force_x11",     "DAWN_USE_X11")
-        _force("force_glfw",    "DAWN_USE_GLFW")
+        # windowing
+        for opt, var in [
+            ("force_wayland", "DAWN_USE_WAYLAND"),
+            ("force_x11",     "DAWN_USE_X11"),
+            ("force_glfw",    "DAWN_USE_GLFW"),
+        ]:
+            _map(opt, var)
 
-        # Always-off for package
+        # disable tests/tools/samples
         for f in (
             "TINT_BUILD_SPV_READER",
             "TINT_BUILD_CMD_TOOLS",
@@ -135,9 +149,40 @@ class DawnConan(ConanFile):
         cmake.build()
 
     def package(self):
-        CMake(self).install()
+        cmake = CMake(self)
+        cmake.install()
+
+        cfg = str(self.settings.build_type)
+        src_dir = os.path.join(self.build_folder, "build", cfg, "src", "dawn")
+        copy(self, "libdawn_*.a", src_dir, os.path.join(self.package_folder, "lib"), keep_path=False)
+
+        # remove the shared plugin
+        rm(self, "*.so*", os.path.join(self.package_folder, "lib"))
 
     def package_info(self):
-        self.cpp_info.set_property("cmake_target_name", "dawn::webgpu_dawn")
-        self.cpp_info.libs = ["webgpu_dawn"]
+        # overall package name and alias
+        self.cpp_info.set_property("cmake_file_name", "Dawn")
+        self.cpp_info.set_property("cmake_target_name", "dawn::dawncpp")
+
+        # define individual components
+        components = {
+            "dawn_common":     [],
+            "dawn_native":     ["dawn_common"],
+            "dawn_wgpu_utils": ["dawn_native"],
+            "dawn_proc":       ["dawn_wgpu_utils"],
+            "dawn_wire":       ["dawn_common"],
+            "dawn_platform":   ["dawn_common"],
+            "dawn_glfw":       ["dawn_platform"],
+        }
+
+        for name, requires in components.items():
+            comp = self.cpp_info.components[name]
+            comp.libs = [name]
+            comp.set_property("cmake_target_name", f"dawn::{name}")
+            comp.requires = [f"dawn::{r}" for r in requires]
+
+        # alias pulling them all in
+        alias = self.cpp_info.components["dawncpp"]
+        alias.set_property("cmake_target_name", "dawn::dawncpp")
+        alias.requires = [f"dawn::{n}" for n in components]
 
