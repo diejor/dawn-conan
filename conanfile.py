@@ -85,16 +85,16 @@ class DawnConan(ConanFile):
     def generate(self):
         tc = CMakeToolchain(self, generator="Ninja")
 
-        tc.cache_variables["DAWN_ENABLE_INSTALL"]     = "ON"
-        tc.cache_variables["DAWN_FETCH_DEPENDENCIES"] = "ON"
+        tc.variables["DAWN_ENABLE_INSTALL"]     = "ON"
+        tc.variables["DAWN_FETCH_DEPENDENCIES"] = "ON"
 
         # Map any forced options into DAWN_ENABLE_*/USE_* cache vars
         def _force(opt_name, cmake_var):
             val = getattr(self.options, opt_name)
             if val is True:
-                tc.cache_variables[cmake_var] = "ON"
+                tc.variables[cmake_var] = "ON"
             elif val is False:
-                tc.cache_variables[cmake_var] = "OFF"
+                tc.variables[cmake_var] = "OFF"
 
         # Backends
         _force("force_vulkan",     "DAWN_ENABLE_VULKAN")
